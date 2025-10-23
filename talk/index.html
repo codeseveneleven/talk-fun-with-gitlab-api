@@ -4,7 +4,7 @@
 		<meta charset="utf-8">
 		<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
 
-		<title>Let's Build an AI-Driven Search on Our Website</title>
+		<title>Fun with the Gitlab API and PHP</title>
 
 		<link href="dist/reset.css" rel="stylesheet">
 		<link href="dist/reveal.css" rel="stylesheet">
@@ -18,9 +18,8 @@
 		<div class="reveal">
 			<div class="slides">
 				<section>
-					<h1>Let's Build an AI-Driven Search on Our Website</h1>
-					<h2>with embeddings and Redis</h2>
-					<h4>TYPO3 Developer Days 2025</h4>
+					<h1>Fun with the Gitlab API and PHP</h1>
+					<h4>IPC Munich 2025</h4>
 					<h4>Frank Berger</h4>
 				</section>
 				<section>
@@ -42,31 +41,46 @@
 				</section>
 
 				<section>
-					<h1>What is an Embedding?</h1>
-					<p class="fragment">A point in multi-dimensional space, described by a vector</p>
-					<p class="fragment">Mathematically represent characteristics and meaning of a word, phrase or text</p>
-					<p class="fragment">It encodes both semantic and contextual information</p>
-					<p class="fragment">AI and LLMs enable the creation of embeddings with hundreds or even thousands of dimensions</p>
+					<h2>About the API</h2>
+                    <p class="fragment">Gitlab offers a REST API</p>
+                    <p class="fragment">Almost all tasks can be done through the API</p>
+                    <p class="fragment">Without using a git binary</p>
+                    <p class="fragment">https://docs.gitlab.com/api/rest/</p>
 				</section>
 
-				<section>
-					<img src="vectors-example.png"/>
-				</section>
+                <section>
+                    <h2>PHP Clients</h2>
+                    <p>m4tthumphrey/php-gitlab-api (mentioned by Gitlab itself)</p>
+                    <p class="fragment">Verb-complete implementation</p>
+                    <p class="fragment">Pure userland implementation without the need of a git binary</p>
+                </section>
 
-				<section>
-					<img src="formula.png"/>
-				</section>
+                <section>
+                    <h2>Creating a personal access token</h2>
+                    <img src="personal-access-token.png"/>
+                    <p class="fragment">A personal access token will inherit the user level of your user on the respecting project!</p>
+                </section>
 
-				<section>
-					<h2>Used in most cases: Cosine Distance</h2>
-					<p>Cosine distance is defined as the distance of the angle between two vectors normalized to unit length, ranging from 0 to 2</p>
-					<ul>
-						<li>0 = Synonymous (the same)</li>
-						<li>1 = Orthogonal (no relation)</li>
-						<li>2 = Antonymous (the opposite)</li>
-					</ul>
-					<p class="fragment">the shortest distance wins</p>
-				</section>
+                <section>
+                    <h2>Creating a project access token</h2>
+                    <img src="project-access-token.png"/>
+
+                    <p class="fragment">If you create a project level access token, you must provide the project-id or project-path to allmost all API-actions</p>
+                </section>
+
+                <section>
+                    <h2>What to define in the token</h2>
+                    <img src="token-creation.png"/>
+                </section>
+
+                <section>
+                    <h2>Other Tokens</h2>
+                    <h4>OAUTH2 Token</h4>
+                    <p>An OAUTH2 Token can be used as well, with Gitlab as an IdP, but that is probably not practical for automated processes</p>
+                    <h4>CI_JOB_TOKEN</h4>
+                    <p>When running a tool inside a CI/CD queue,  the CI_JOB_TOKEN can be used to access the Gitlab API</p>
+                </section>
+
 
 				<section>
 					<h2>In PHP we can calculate it like this:</h2>
