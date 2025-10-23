@@ -1,0 +1,427 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+
+		<title>Let's Build an AI-Driven Search on Our Website</title>
+
+		<link href="dist/reset.css" rel="stylesheet">
+		<link href="dist/reveal.css" rel="stylesheet">
+		<link href="dist/theme/code711.css" rel="stylesheet">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link href="plugin/highlight/monokai.css" rel="stylesheet">
+	</head>
+	<body>
+		<img class="logos7" src="sudhaus7.svg"/>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h1>Let's Build an AI-Driven Search on Our Website</h1>
+					<h2>with embeddings and Redis</h2>
+					<h4>TYPO3 Developer Days 2025</h4>
+					<h4>Frank Berger</h4>
+				</section>
+				<section>
+					<div class="twocolumn">
+						<div>
+							<h4>A bit about me</h4>
+							<ul>
+								<li>Frank Berger</li>
+								<li>Head of Engineering at sudhaus7.de, a label of the B-Factor GmbH, member of the code711.de network</li>
+								<li>Started as an Unix  Systemadministrator who also develops in 1996</li>
+								<li>Working with PHP since V3</li>
+								<li>Does TYPO3 since 2005</li>
+							</ul>
+						</div>
+						<div>
+							<img src="Frank.jpg"/>
+						</div>
+					</div>
+				</section>
+
+				<section>
+					<h1>What is an Embedding?</h1>
+					<p class="fragment">A point in multi-dimensional space, described by a vector</p>
+					<p class="fragment">Mathematically represent characteristics and meaning of a word, phrase or text</p>
+					<p class="fragment">It encodes both semantic and contextual information</p>
+					<p class="fragment">AI and LLMs enable the creation of embeddings with hundreds or even thousands of dimensions</p>
+				</section>
+
+				<section>
+					<img src="vectors-example.png"/>
+				</section>
+
+				<section>
+					<img src="formula.png"/>
+				</section>
+
+				<section>
+					<h2>Used in most cases: Cosine Distance</h2>
+					<p>Cosine distance is defined as the distance of the angle between two vectors normalized to unit length, ranging from 0 to 2</p>
+					<ul>
+						<li>0 = Synonymous (the same)</li>
+						<li>1 = Orthogonal (no relation)</li>
+						<li>2 = Antonymous (the opposite)</li>
+					</ul>
+					<p class="fragment">the shortest distance wins</p>
+				</section>
+
+				<section>
+					<h2>In PHP we can calculate it like this:</h2>
+					<pre><code class="hljs" data-line-numbers data-line-numbers data-trim>
+	function distance($a,$b):float
+	{
+		return 1 - (dotp($a,$b) /
+			sqrt(dotp($a,$a) * dotp($b,$b))
+		);
+	}
+	// calculating the dot-product
+	function dotp($a,$b):float
+	{
+		$products = array_map(function($da, $db) {
+			return $da * $db;
+		}, $a, $b);
+		return (float)array_sum($products);
+	}
+					</code></pre>
+					<p class="fragment">This will produce a floating point number between 0 and 2 </p>
+				</section>
+
+				<section>
+					<h2>What does such an embedding look like?</h2>
+					<p>the word/concept "Queen"</p>
+					<pre><code class="hljs" data-line-numbers data-trim >[-0.0045574773,-0.0067263762,-0.002498418,
+	-0.018243857,-0.01689091,0.010516719,-0.0076504247,
+	-0.024046184,-0.017365139,-0.012818122,0.0145058185,
+	0.022330591,0.014533714,-0.0029691597,-0.018801773,
+	0.008884814,0.043322187,0.021061333,0.029513761,
+	-0.008801127,0.0020712635,0.014136199,-0.005460604,
+	0.003598559,-0.005296716,-0.010230786,0.0072319875,
+	... ,-0.011262931]</code></pre>
+					<p>encoded in 768 dimensions, capturing meaning, context and relations</p>
+				</section>
+
+				<section>
+					<h2>How do I get an embedding in PHP?</h2>
+					<p>composer req openai-php/client</p>
+					<p>ollama run nomic-embed-text:latest</p>
+					<pre><code class="hljs php" data-line-numbers="|1-3|5,6|10" data-trim>
+$client = OpenAI::factory()
+	->withBaseUri('http://localhost:11434/v1')
+	->make();
+$result = $client->embeddings()->create([
+	'model'=>'nomic-embed-text',
+	'dimensions'=>768,
+	'input'=>$text,
+	'encoding_format'=> 'float',
+]);
+return $result->toArray()['data'][0]['embedding'];
+					</code></pre>
+					<p class="fragment">Other good embeding engine: snowflake-arctic-embed2</p>
+				</section>
+
+				<section>
+					<h2>Monarch + Woman = Queen</h2>
+					<p class="fragment">This is how LLMs calculate what you 'mean'</p>
+				</section>
+
+				<section>
+					<h2>Normalize unformatted data</h2>
+					<pre><code class="hljs php" data-line-numbers="|4-6|7-10" data-trim>
+$embedding  = new Embedding();
+$normalizeMe = $argv[1];
+
+$dictionary  = $embedding->generateDictionary([
+	'rock',	'paper', 'scissors', 'lizard', 'spock',
+]);
+$distances = $embedding->calculateDistances(
+	$embedding->calculateEmbedding( $normalizeMe ),
+	$dictionary
+); // already sorted
+
+print_r($distances);
+printf('the Input "%s" is normalized to "%s"'."\n\n\n",
+$normalizeMe,array_keys($distances)[0]);
+					</code></pre>
+					<p class="fragment">This way we can normalize random data and text to our domain.</p>
+				</section>
+
+				<section>
+					<h2>Embeddings in Redis</h2>
+					<pre><code class="hljs sh"  data-trim>docker run --name my-Redis-container \
+-p 6378:6379 -v `pwd`/dockerRedisdata:/data \
+-d Redis/Redis-stack-server:latest</code></pre>
+					<ul>
+						<li>Defining our JSON structure</li>
+						<li>Creating an Index in Redis</li>
+						<li>Storing Embeddings in the Index</li>
+						<li>Searching Data using the Index</li>
+					</ul>
+					<p class="fragment">"Index" is here a synonym for a table and an index in an SQL database</p>
+				</section>
+
+				<section>
+					<h2>Defining our JSON structure</h2>
+					<pre><code class="hljs js" data-line-numbers data-trim>
+{
+	uid: 123,
+	pid: 111,
+	table: 'tt_content',
+	text: 'lorem ipsum vitae dolor sit amit...',
+	slug: 'https://my.domain.de/the/path/to/the/page',
+	embedding: [0.45633,-0.567476,0.126775,...]
+}
+					</code></pre>
+				</section>
+
+				<section>
+					<h2>Creating an Index in Redis</h2>
+					<pre><code  data-line-numbers="1-10|8" data-trim>
+FT.CREATE idx:MYINDEX ON JSON PREFIX 1 text: SCORE 1.0
+SCHEMA
+	$.uid NUMERIC
+	$.pid NUMERIC
+	$.table TEXT WEIGHT 1.0 NOSTEM
+	$.text TEXT WEIGHT 1.0 NOSTEM
+	$.slug TEXT WEIGHT 1.0 NOSTEM
+	$.embedding AS vector VECTOR FLAT 6 TYPE FLOAT32 DIM 1536 DISTANCE_METRIC COSINE
+ 					</code></pre>
+				</section>
+
+				<section>
+					<h2>Creating an Index in Redis</h2>
+					<h4>in PHP Using pRedis/pRedis</h4>
+
+					<pre><code class="hljs php" data-line-numbers="1-20|1|2-7|8-12|14-18" data-trim>
+$client = new Predis\Client([ 'port'=>6378 ]);
+$fields = [
+	new NumericField('$.uid', "uid"),
+	new NumericField('$.pid', "pid"),
+	new TextField('$.table', "table"),
+	new TextField('$.text', "text"),
+	new TextField('$.slug', "slug"),
+	new VectorField( '$.embedding', 'FLAT' ,[
+		'TYPE','FLOAT32',
+		'DIM','1536',
+		'DISTANCE_METRIC','COSINE'
+	],'vector')
+];
+$arguments = new CreateArguments();
+$arguments->on('JSON' )->prefix( ['MYINDEX:'])->score(1.0);
+$status = $client->ftcreate(
+	'idx:MYINDEX', $fields, $arguments
+);
+var_dump($status);</code></pre>
+				</section>
+
+				<section>
+					<h2>Storing Embeddings in the Index</h2>
+					<pre><code class="hljs php" data-line-numbers="|4-7|8|9-16|15|17,18" data-trim>
+// $row is from the TYPO3 database,
+// or the TYPO3 Datahandler or similar
+// $table for example tt_content
+$text = sprintf("%s\n%s",
+	$row['header'],
+	strip_tags( $row['bodytext'] )
+);
+$key = 'MYINDEX:'.$table.':'.$row['uid'];
+$set = [
+	'uid'=>$row['uid'],
+	'pid'=>$row['pid'],
+	'slug'=>$base.$row['slug'],
+	'table'=>$table,
+	'text' => $text,
+	'embedding'=>getEmbedding($text)
+];
+$client = new Predis\Client(['port'=>6378]);
+$client->jsonset( $key, '$', json_encode($set) );
+					</code></pre>
+				</section>
+
+
+				<section>
+					<h2>Searching Data using the Index</h2>
+					<pre><code class="hljs php" data-line-numbers="|2|4|6|7|8-9|10|11-14|16-20|17|18|19|21" data-trim>
+use Predis\Command\Argument\Search\SearchArguments;
+$searchEmbedding = getEmbedding( $searchTerm );
+$client = new Predis\Client([ 'port' => 6378 ]);
+$searchArguments = new SearchArguments();
+$searchArguments
+    ->dialect( 2 ) // must be 2 for vector
+    ->sortBy('__vector_score') // closest neighbour by definition
+    ->addReturn( 6, '__vector_score', 'uid','pid'
+		,'text','table','slug')
+    ->limit(0, 10)
+    ->params( [
+			'query_vector',
+			pack( 'f1536', ... $searchEmbedding )
+		]);
+
+$rawResult = $client->ftsearch(
+	'idx:MYINDEX',
+	'(*)=>[KNN 100 @vector $query_vector]',
+	$searchArguments
+);
+[$count,$results] = normalizeRedisResult( $rawResult );
+					</code></pre>
+				</section>
+				<section>
+					<section>
+					<h2>Searching Data using the Index</h2>
+						<p>normalizing the Redis-result</p>
+						<p>The RAW Result:</p>
+					<pre><code class="hljs php" data-line-numbers data-trim>
+Array (
+[0] => 3 // amount of result sets
+[1] => MYINDEX:tt_content:2467 // KEY first set
+[2] => Array (
+	[0] => __vector_score
+	[1] => 0.18477755785
+	[2] => uid
+	[3] => 2467
+	[4] => text
+	[5] => Contact
+	[6] => table
+	[7] => tt_content
+	[8] => pid
+	[9] => 265
+	[10] => slug
+	[11] => https://www.tcworld.info/contact
+)
+[3,4] // next key and set
+[5,6] // next key and set
+)
+					</code></pre>
+					</section>
+					<section>
+						<h2>Searching Data using the Index</h2>
+						<p>normalizing the Redis-result</p>
+						<pre><code class="hljs php" data-line-numbers="|2,3|4|5|7-12|15" data-trim>
+function normalizeRedisResult(array $result):array {
+	$count = array_shift($result);
+	$return = [];
+	foreach($result as $value) {
+		if(!is_array($value)) $key=$value;
+		else {
+			$set = [];
+			for($i=0,$l=count($value); $i<$l; $i=$i+2) {
+				$k = $value[$i];
+				$set[$k] = $value[$i+1];
+			}
+			$return[ $key ] = $set;
+		}
+	}
+	return [$count,$return];
+}
+					</code></pre>
+					</section>
+					<section>
+						<h2>Searching Data using the Index</h2>
+						<p>normalizing the Redis-result</p>
+						<pre><code class="hljs php" data-line-numbers data-trim>
+Array
+(
+    [MYINDEX:tt_content:2509] => Array
+        (
+            [__vector_score] => 0.194359481335
+            [uid] => 2509
+            [text] => lorem ipsum vitae...
+            [table] => tt_content
+            [pid] => 273
+            [slug] => https://www.tcworld.info/faq
+        )
+    [MYINDEX:tt_content:2528] => Array ()
+    [MYINDEX:tt_content:2567] => Array ()
+)
+					</code></pre>
+					</section>
+				</section>
+
+
+				<section>
+					<h2>want to see this stuff in action?</h2>
+					<div class="fragment">
+						<p>CSS: https://picocss.com/</p>
+						<p>Javascript: VanillaJS</p>
+						<p>Embeddings: OpenAI text-embedding-3-small</p>
+					</div>
+				</section>
+
+				<section>
+					<h2>Usecases</h2>
+					<ul>
+						<li>Product Search by similarity</li>
+						<li>Better Searches for API provided data (Redmine for example)</li>
+						<li>Faster quicksearches</li>
+						<li>Categorization/Normalisation of unstructured content</li>
+					</ul>
+				</section>
+
+				<section>
+					<h2>Caveats</h2>
+					<ul>
+						<li>You have to stick to a model and dimension</li>
+						<li>You might need to re-index sometimes</li>
+					</ul>
+				</section>
+
+
+				<section>
+					<h2>Alternatives to Redis</h2>
+					<ul>
+						<li>Qdrant</li>
+						<li>Pinecone (TYPO3 extension available)</li>
+						<li>Weaviate</li>
+						<li>PostgresSQL Vector</li>
+						<li>... many more</li>
+					</ul>
+				</section>
+
+				<section>
+					<h2>Next steps</h2>
+					<ul>
+						<li>More Abstraction</li>
+						<li>DataHandler Support</li>
+						<li>Tim Lochmüller <ul>
+                            <li>EXT:index</li>
+                            <li>EXT:seal</li>
+                        </ul></li>
+					</ul>
+				</section>
+
+
+				<section>
+					<h2>Shameless plug</h2>
+					<p>smartbrew.ai</p>
+					<img src="Logo_Smartbrew_ohneSub.png" />
+				</section>
+
+				<section>
+					<h2>What are your questions?</h2>
+					<img class="qr" src="qr-code.svg"/>
+					<h3>Thank you, I am here all weekend</h3>
+					<p>Twitter: @FoppelFB | Mastodon: @foppel@phpc.social</p>
+					<p>fberger@sudhaus7.de | https://sudhaus7.de/</p>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealHighlight, RevealNotes ]
+			});
+
+		</script>
+
+	</body>
+</html>
