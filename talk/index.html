@@ -58,14 +58,14 @@
                 <section>
                     <h2>Creating a personal access token</h2>
                     <img src="personal-access-token.png"/>
-                    <p class="fragment">A personal access token will inherit the user level of your user on the respecting project!</p>
+                    <p class="fragment">A personal access token will inherit the user level of the  user on the respecting project!</p>
                 </section>
 
                 <section>
                     <h2>Creating a project access token</h2>
                     <img src="project-access-token.png"/>
 
-                    <p class="fragment">If you create a project level access token, you must provide the project-id or project-path to allmost all API-actions</p>
+                    <p class="fragment">With a project level access token, the project-id or project-path must be provided for almost all API-actions</p>
                 </section>
 
                 <section>
@@ -81,336 +81,385 @@
                     <p>When running a tool inside a CI/CD queue,  the CI_JOB_TOKEN can be used to access the Gitlab API</p>
                 </section>
 
+                <section>
+                    <h2>Connect to the Gitlab Server</h2>
+                    <pre><code class="hljs php" data-line-numbers="|5" data-trim>
+$client = new Gitlab\Client();
+$client->setUrl(getenv('GITLAB_SERVER')); // https://gitlab.com/
+$client->authenticate(
+    getenv('GITLAB_ACCESS_TOKEN'), // glpat-XXXXX-XXX....
+    Gitlab\Client::AUTH_HTTP_TOKEN
+);
+                    </code></pre>
+                    <p class="fragment">Any PSR-18 HTTP-Client can be injected as well</p>
+                </section>
 
-				<section>
-					<h2>In PHP we can calculate it like this:</h2>
-					<pre><code class="hljs" data-line-numbers data-line-numbers data-trim>
-	function distance($a,$b):float
-	{
-		return 1 - (dotp($a,$b) /
-			sqrt(dotp($a,$a) * dotp($b,$b))
-		);
-	}
-	// calculating the dot-product
-	function dotp($a,$b):float
-	{
-		$products = array_map(function($da, $db) {
-			return $da * $db;
-		}, $a, $b);
-		return (float)array_sum($products);
-	}
-					</code></pre>
-					<p class="fragment">This will produce a floating point number between 0 and 2 </p>
-				</section>
+                <section>
+                    <h2>Let's try to list some projects</h2>
+                    <pre><code class="hljs php" data-line-numbers="|2" data-trim>
+$projects = $client
+    ->projects()
+    ->all();
 
-				<section>
-					<h2>What does such an embedding look like?</h2>
-					<p>the word/concept "Queen"</p>
-					<pre><code class="hljs" data-line-numbers data-trim >[-0.0045574773,-0.0067263762,-0.002498418,
-	-0.018243857,-0.01689091,0.010516719,-0.0076504247,
-	-0.024046184,-0.017365139,-0.012818122,0.0145058185,
-	0.022330591,0.014533714,-0.0029691597,-0.018801773,
-	0.008884814,0.043322187,0.021061333,0.029513761,
-	-0.008801127,0.0020712635,0.014136199,-0.005460604,
-	0.003598559,-0.005296716,-0.010230786,0.0072319875,
-	... ,-0.011262931]</code></pre>
-					<p>encoded in 768 dimensions, capturing meaning, context and relations</p>
-				</section>
+foreach($projects as $project) {
+    printf("%d %s (%s)\n",
+        $project['id'],
+        $project['name_with_namespace'],
+        $project['path_with_namespace']
+    );
+}
+                    </code></pre>
+                </section>
 
-				<section>
-					<h2>How do I get an embedding in PHP?</h2>
-					<p>composer req openai-php/client</p>
-					<p>ollama run nomic-embed-text:latest</p>
-					<pre><code class="hljs php" data-line-numbers="|1-3|5,6|10" data-trim>
-$client = OpenAI::factory()
-	->withBaseUri('http://localhost:11434/v1')
-	->make();
-$result = $client->embeddings()->create([
-	'model'=>'nomic-embed-text',
-	'dimensions'=>768,
-	'input'=>$text,
-	'encoding_format'=> 'float',
-]);
-return $result->toArray()['data'][0]['embedding'];
-					</code></pre>
-					<p class="fragment">Other good embeding engine: snowflake-arctic-embed2</p>
-				</section>
 
-				<section>
-					<h2>Monarch + Woman = Queen</h2>
-					<p class="fragment">This is how LLMs calculate what you 'mean'</p>
-				</section>
+                <section>
+                    <h2>That's a lot of projects... Filters?</h2>
+                    <pre><code class="hljs php" data-line-numbers="3" data-trim>
+$projects = $client
+    ->projects()
+    ->all(['membership'=>true]);
 
-				<section>
-					<h2>Normalize unformatted data</h2>
-					<pre><code class="hljs php" data-line-numbers="|4-6|7-10" data-trim>
-$embedding  = new Embedding();
-$normalizeMe = $argv[1];
+foreach($projects as $project) {
+    printf("%d %s (%s)\n",
+        $project['id'],
+        $project['name_with_namespace'],
+        $project['path_with_namespace']
+    );
+}
+                    </code></pre>
+                    <p class="fragment">Reminder: a user-level access token will give access to everything the user can see </p>
+                </section>
 
-$dictionary  = $embedding->generateDictionary([
-	'rock',	'paper', 'scissors', 'lizard', 'spock',
-]);
-$distances = $embedding->calculateDistances(
-	$embedding->calculateEmbedding( $normalizeMe ),
-	$dictionary
-); // already sorted
-
-print_r($distances);
-printf('the Input "%s" is normalized to "%s"'."\n\n\n",
-$normalizeMe,array_keys($distances)[0]);
-					</code></pre>
-					<p class="fragment">This way we can normalize random data and text to our domain.</p>
-				</section>
-
-				<section>
-					<h2>Embeddings in Redis</h2>
-					<pre><code class="hljs sh"  data-trim>docker run --name my-Redis-container \
--p 6378:6379 -v `pwd`/dockerRedisdata:/data \
--d Redis/Redis-stack-server:latest</code></pre>
-					<ul>
-						<li>Defining our JSON structure</li>
-						<li>Creating an Index in Redis</li>
-						<li>Storing Embeddings in the Index</li>
-						<li>Searching Data using the Index</li>
-					</ul>
-					<p class="fragment">"Index" is here a synonym for a table and an index in an SQL database</p>
-				</section>
-
-				<section>
-					<h2>Defining our JSON structure</h2>
-					<pre><code class="hljs js" data-line-numbers data-trim>
+                <section>
+                    <h2>Contents of $project</h2>
+                    <pre><code class="hljs json" data-line-numbers="" data-trim="" data-auto-animate>
 {
-	uid: 123,
-	pid: 111,
-	table: 'tt_content',
-	text: 'lorem ipsum vitae dolor sit amit...',
-	slug: 'https://my.domain.de/the/path/to/the/page',
-	embedding: [0.45633,-0.567476,0.126775,...]
+  "id": 75547854,
+  "description": null,
+  "name": "Demo Talk",
+  "name_with_namespace": "Frank Berger / Demo Talk",
+  "path": "demo-talk",
+  "path_with_namespace": "foppelfb/demo-talk",
+  "created_at": "2025-10-23T14:06:26.665Z",
+  "default_branch": "main",
+  "tag_list": [],
+  "topics": [],
+  "ssh_url_to_repo": "git@gitlab.com:foppelfb/demo-talk.git",
+  "http_url_to_repo": "https://gitlab.com/foppelfb/demo-talk.git",
+  "web_url": "https://gitlab.com/foppelfb/demo-talk",
+  "readme_url": "https://gitlab.com/foppelfb/demo-talk/-/blob/main/README.md",
+  "forks_count": 0,
+  "avatar_url": null,
+  "star_count": 0,
+  "last_activity_at": "2025-10-23T14:06:26.572Z",
+  "visibility": "private",
+  "namespace": {
+    "id": 4658152,
+    "name": "Frank Berger",
+    "path": "foppelfb",
+    "kind": "user",
+    "full_path": "foppelfb",
+    "parent_id": null,
+    "avatar_url": "https://secure.gravatar.com/avatar/c9f3b5a9949724de5da93fcf1ea189dd31131a25502fb8555eb7cff3fab5cfad?s=80&d=identicon",
+    "web_url": "https://gitlab.com/foppelfb"
+  },
+  "container_registry_image_prefix": "registry.gitlab.com/foppelfb/demo-talk",
+  "_links": {
+    "self": "https://gitlab.com/api/v4/projects/75547854",
+    "issues": "https://gitlab.com/api/v4/projects/75547854/issues",
+    "merge_requests": "https://gitlab.com/api/v4/projects/75547854/merge_requests",
+    "repo_branches": "https://gitlab.com/api/v4/projects/75547854/repository/branches",
+    "labels": "https://gitlab.com/api/v4/projects/75547854/labels",
+    "events": "https://gitlab.com/api/v4/projects/75547854/events",
+    "members": "https://gitlab.com/api/v4/projects/75547854/members",
+    "cluster_agents": "https://gitlab.com/api/v4/projects/75547854/cluster_agents"
+  },
+  "marked_for_deletion_at": null,
+  "marked_for_deletion_on": null,
+  "packages_enabled": true,
+  "empty_repo": false,
+  "archived": false,
+  "owner": {
+    "id": 3583153,
+    "username": "foppelfb",
+    "public_email": "",
+    "name": "Frank Berger",
+    "state": "active",
+    "locked": false,
+    "avatar_url": "https://secure.gravatar.com/avatar/c9f3b5a9949724de5da93fcf1ea189dd31131a25502fb8555eb7cff3fab5cfad?s=80&d=identicon",
+    "web_url": "https://gitlab.com/foppelfb"
+  },
+  "resolve_outdated_diff_discussions": false,
+  "container_expiration_policy": {
+    "cadence": "1d",
+    "enabled": false,
+    "keep_n": 10,
+    "older_than": "90d",
+    "name_regex": ".*",
+    "name_regex_keep": null,
+    "next_run_at": "2025-10-24T14:06:26.695Z"
+  },
+  "repository_object_format": "sha1",
+  "issues_enabled": true,
+  "merge_requests_enabled": true,
+  "wiki_enabled": true,
+  "jobs_enabled": true,
+  "snippets_enabled": true,
+  "container_registry_enabled": true,
+  "service_desk_enabled": true,
+  "service_desk_address": "contact-project+foppelfb-demo-talk-75547854-issue-@incoming.gitlab.com",
+  "can_create_merge_request_in": true,
+  "issues_access_level": "enabled",
+  "repository_access_level": "enabled",
+  "merge_requests_access_level": "enabled",
+  "forking_access_level": "enabled",
+  "wiki_access_level": "enabled",
+  "builds_access_level": "enabled",
+  "snippets_access_level": "enabled",
+  "pages_access_level": "private",
+  "analytics_access_level": "enabled",
+  "container_registry_access_level": "enabled",
+  "security_and_compliance_access_level": "private",
+  "releases_access_level": "enabled",
+  "environments_access_level": "enabled",
+  "feature_flags_access_level": "enabled",
+  "infrastructure_access_level": "enabled",
+  "monitor_access_level": "enabled",
+  "model_experiments_access_level": "enabled",
+  "model_registry_access_level": "enabled",
+  "package_registry_access_level": "enabled",
+  "emails_disabled": false,
+  "emails_enabled": true,
+  "show_diff_preview_in_email": true,
+  "shared_runners_enabled": true,
+  "lfs_enabled": true,
+  "creator_id": 3583153,
+  "import_status": "none",
+  "open_issues_count": 1,
+  "description_html": "",
+  "updated_at": "2025-10-23T14:06:28.259Z",
+  "ci_config_path": "",
+  "public_jobs": true,
+  "shared_with_groups": [],
+  "only_allow_merge_if_pipeline_succeeds": false,
+  "allow_merge_on_skipped_pipeline": null,
+  "request_access_enabled": true,
+  "only_allow_merge_if_all_discussions_are_resolved": false,
+  "remove_source_branch_after_merge": true,
+  "printing_merge_request_link_enabled": true,
+  "merge_method": "merge",
+  "merge_request_title_regex": null,
+  "merge_request_title_regex_description": null,
+  "squash_option": "default_off",
+  "enforce_auth_checks_on_uploads": true,
+  "suggestion_commit_message": null,
+  "merge_commit_template": null,
+  "squash_commit_template": null,
+  "issue_branch_template": null,
+  "warn_about_potentially_unwanted_characters": true,
+  "autoclose_referenced_issues": true,
+  "max_artifacts_size": null,
+  "external_authorization_classification_label": "",
+  "requirements_enabled": false,
+  "requirements_access_level": "enabled",
+  "security_and_compliance_enabled": true,
+  "compliance_frameworks": [],
+  "duo_remote_flows_enabled": true,
+  "permissions": {
+    "project_access": {
+      "access_level": 30,
+      "notification_level": 3
+    },
+    "group_access": null
+  }
 }
-					</code></pre>
-				</section>
+                    </code> </pre>
+                </section>
+                <section>
+                    <h2>What about issues?</h2>
+                    <pre><code class="hljs php" data-line-numbers="|2|3|7,8" data-trim>
+$issues = $client
+    ->issues()
+    ->all('foppelfb/demo-talk'); // id or path
 
-				<section>
-					<h2>Creating an Index in Redis</h2>
-					<pre><code  data-line-numbers="1-10|8" data-trim>
-FT.CREATE idx:MYINDEX ON JSON PREFIX 1 text: SCORE 1.0
-SCHEMA
-	$.uid NUMERIC
-	$.pid NUMERIC
-	$.table TEXT WEIGHT 1.0 NOSTEM
-	$.text TEXT WEIGHT 1.0 NOSTEM
-	$.slug TEXT WEIGHT 1.0 NOSTEM
-	$.embedding AS vector VECTOR FLAT 6 TYPE FLOAT32 DIM 1536 DISTANCE_METRIC COSINE
- 					</code></pre>
-				</section>
-
-				<section>
-					<h2>Creating an Index in Redis</h2>
-					<h4>in PHP Using pRedis/pRedis</h4>
-
-					<pre><code class="hljs php" data-line-numbers="1-20|1|2-7|8-12|14-18" data-trim>
-$client = new Predis\Client([ 'port'=>6378 ]);
-$fields = [
-	new NumericField('$.uid', "uid"),
-	new NumericField('$.pid', "pid"),
-	new TextField('$.table', "table"),
-	new TextField('$.text', "text"),
-	new TextField('$.slug', "slug"),
-	new VectorField( '$.embedding', 'FLAT' ,[
-		'TYPE','FLOAT32',
-		'DIM','1536',
-		'DISTANCE_METRIC','COSINE'
-	],'vector')
-];
-$arguments = new CreateArguments();
-$arguments->on('JSON' )->prefix( ['MYINDEX:'])->score(1.0);
-$status = $client->ftcreate(
-	'idx:MYINDEX', $fields, $arguments
-);
-var_dump($status);</code></pre>
-				</section>
-
-				<section>
-					<h2>Storing Embeddings in the Index</h2>
-					<pre><code class="hljs php" data-line-numbers="|4-7|8|9-16|15|17,18" data-trim>
-// $row is from the TYPO3 database,
-// or the TYPO3 Datahandler or similar
-// $table for example tt_content
-$text = sprintf("%s\n%s",
-	$row['header'],
-	strip_tags( $row['bodytext'] )
-);
-$key = 'MYINDEX:'.$table.':'.$row['uid'];
-$set = [
-	'uid'=>$row['uid'],
-	'pid'=>$row['pid'],
-	'slug'=>$base.$row['slug'],
-	'table'=>$table,
-	'text' => $text,
-	'embedding'=>getEmbedding($text)
-];
-$client = new Predis\Client(['port'=>6378]);
-$client->jsonset( $key, '$', json_encode($set) );
-					</code></pre>
-				</section>
-
-
-				<section>
-					<h2>Searching Data using the Index</h2>
-					<pre><code class="hljs php" data-line-numbers="|2|4|6|7|8-9|10|11-14|16-20|17|18|19|21" data-trim>
-use Predis\Command\Argument\Search\SearchArguments;
-$searchEmbedding = getEmbedding( $searchTerm );
-$client = new Predis\Client([ 'port' => 6378 ]);
-$searchArguments = new SearchArguments();
-$searchArguments
-    ->dialect( 2 ) // must be 2 for vector
-    ->sortBy('__vector_score') // closest neighbour by definition
-    ->addReturn( 6, '__vector_score', 'uid','pid'
-		,'text','table','slug')
-    ->limit(0, 10)
-    ->params( [
-			'query_vector',
-			pack( 'f1536', ... $searchEmbedding )
-		]);
-
-$rawResult = $client->ftsearch(
-	'idx:MYINDEX',
-	'(*)=>[KNN 100 @vector $query_vector]',
-	$searchArguments
-);
-[$count,$results] = normalizeRedisResult( $rawResult );
-					</code></pre>
-				</section>
-				<section>
-					<section>
-					<h2>Searching Data using the Index</h2>
-						<p>normalizing the Redis-result</p>
-						<p>The RAW Result:</p>
-					<pre><code class="hljs php" data-line-numbers data-trim>
-Array (
-[0] => 3 // amount of result sets
-[1] => MYINDEX:tt_content:2467 // KEY first set
-[2] => Array (
-	[0] => __vector_score
-	[1] => 0.18477755785
-	[2] => uid
-	[3] => 2467
-	[4] => text
-	[5] => Contact
-	[6] => table
-	[7] => tt_content
-	[8] => pid
-	[9] => 265
-	[10] => slug
-	[11] => https://www.tcworld.info/contact
-)
-[3,4] // next key and set
-[5,6] // next key and set
-)
-					</code></pre>
-					</section>
-					<section>
-						<h2>Searching Data using the Index</h2>
-						<p>normalizing the Redis-result</p>
-						<pre><code class="hljs php" data-line-numbers="|2,3|4|5|7-12|15" data-trim>
-function normalizeRedisResult(array $result):array {
-	$count = array_shift($result);
-	$return = [];
-	foreach($result as $value) {
-		if(!is_array($value)) $key=$value;
-		else {
-			$set = [];
-			for($i=0,$l=count($value); $i<$l; $i=$i+2) {
-				$k = $value[$i];
-				$set[$k] = $value[$i+1];
-			}
-			$return[ $key ] = $set;
-		}
-	}
-	return [$count,$return];
+foreach($issues as $issue) {
+	printf("[%d] ID %d in %d: %s (%s)\n%s\n",
+		$issue['id'],
+		$issue['iid'],
+		$issue['project_id'],
+		$issue['title'],
+		$issue['author']['name'],
+		$issue['web_url']
+	);
 }
-					</code></pre>
-					</section>
-					<section>
-						<h2>Searching Data using the Index</h2>
-						<p>normalizing the Redis-result</p>
-						<pre><code class="hljs php" data-line-numbers data-trim>
-Array
-(
-    [MYINDEX:tt_content:2509] => Array
-        (
-            [__vector_score] => 0.194359481335
-            [uid] => 2509
-            [text] => lorem ipsum vitae...
-            [table] => tt_content
-            [pid] => 273
-            [slug] => https://www.tcworld.info/faq
-        )
-    [MYINDEX:tt_content:2528] => Array ()
-    [MYINDEX:tt_content:2567] => Array ()
-)
-					</code></pre>
-					</section>
-				</section>
+                    </code></pre>
+                    <p class="fragment">There is a Pager Strategy available</p>
+                </section>
 
+                <section>
+                    <h2>Idea: creating an issue from the backend/feedback form, or from inside pipelines, or ...</h2>
+                    <pre><code class="hljs php" data-line-numbers="|3|4,5 " data-trim>
+$issue = $client
+	->issues()
+	->create('foppelfb/demo-talk',[
+	'title'=>$title,
+	'description'=>$body,
+]);
+printf("[%d] ID %d in %s: %s (%s)\n%s\n",
+	$issue['id'],
+	$issue['iid'],
+	$issue['project_id'],
+	$issue['title'],
+	$issue['author']['name'],
+	$issue['web_url']
+);
+                    </code></pre>
+                    <p class="fragment">Tip: use different access tokens for different tasks</p>
+                </section>
 
-				<section>
-					<h2>want to see this stuff in action?</h2>
-					<div class="fragment">
-						<p>CSS: https://picocss.com/</p>
-						<p>Javascript: VanillaJS</p>
-						<p>Embeddings: OpenAI text-embedding-3-small</p>
-					</div>
-				</section>
+                <section>
+                    <h2>Available verbs/actions</h2>
+                    <pre><code class="hljs php" data-line-numbers="" data-trim>
+$client->projects();
+$client->issues();
+$client->version();
+$client->deployKeys(); // readonly
+$client->environments();
+$client->deployments();
+$client->jobs();
+$client->users();
+$client->tags();
+$client->wiki();
 
-				<section>
-					<h2>Usecases</h2>
-					<ul>
-						<li>Product Search by similarity</li>
-						<li>Better Searches for API provided data (Redmine for example)</li>
-						<li>Faster quicksearches</li>
-						<li>Categorization/Normalisation of unstructured content</li>
-					</ul>
-				</section>
+$client->repositories();
+$client->repositoryFiles();
+                    </code></pre>
+                    <p>and a few more</p>
+                </section>
 
-				<section>
-					<h2>Caveats</h2>
-					<ul>
-						<li>You have to stick to a model and dimension</li>
-						<li>You might need to re-index sometimes</li>
-					</ul>
-				</section>
+                <section>
+                    <h2>Well, that is nice... but not really beyond normal services</h2>
+                </section>
 
+                <section>
+                    <h2>Working with the repository</h2>
+                    <h3>Listing branches</h3>
+                    <pre><code class="hljs php" data-line-numbers="|2,3|7" data-trim>
+$branches = $client
+    ->repositories()
+    ->branches('foppelfb/demo-talk');
+foreach($branches as $branch) {
+    printf("%s : Last commit %s (%s)\n%s: %s\n\n",
+        $branch['name'],
+        $branch['commit']['short_id'],
+        $branch['commit']['created_at'],
+        $branch['commit']['author_name'],
+        $branch['commit']['title']
+    );
+}
+                    </code></pre>
+                    <p class="fragment">$branch['commit'] == HEAD</p>
+                </section>
 
-				<section>
-					<h2>Alternatives to Redis</h2>
-					<ul>
-						<li>Qdrant</li>
-						<li>Pinecone (TYPO3 extension available)</li>
-						<li>Weaviate</li>
-						<li>PostgresSQL Vector</li>
-						<li>... many more</li>
-					</ul>
-				</section>
+                <section>
+                    <h2>Working with the repository</h2>
+                    <h3>creating a branch</h3>
+                    <pre><code class="hljs php" data-line-numbers="|3|12-14" data-trim>
+try {
+  $branch = $client->repositories()
+  ->createBranch('foppelfb/demo-talk',$newBranch, 'main');
 
-				<section>
-					<h2>Next steps</h2>
-					<ul>
-						<li>More Abstraction</li>
-						<li>DataHandler Support</li>
-						<li>Tim Lochmüller <ul>
-                            <li>EXT:index</li>
-                            <li>EXT:seal</li>
-                        </ul></li>
-					</ul>
-				</section>
+  printf("%s : Last commit %s (%s)\n%s: %s\n\n",
+    $branch['name'], $branch['commit']['short_id'],
+    $branch['commit']['created_at'],
+    $branch['commit']['author_name'],
+    $branch['commit']['title']
+  );
 
+} catch(\Gitlab\Exception\ValidationFailedException $e) {
+	echo $e->getMessage(),"\n";
+}
+                    </code></pre>
+                </section>
 
-				<section>
-					<h2>Shameless plug</h2>
-					<p>smartbrew.ai</p>
-					<img src="Logo_Smartbrew_ohneSub.png" />
-				</section>
+                <section>
+                    <h2>Working with the repository</h2>
+                    <h3>getting the content of a file</h3>
+                    <pre><code class="hljs php" data-line-numbers="|1|4,11|6" data-trim>
+$file = 'my/path/file.txt';
+try {
+    $file = $client->repositoryFiles()
+        ->getFile('foppelfb/demo-talk', $file, 'main');
+} catch (\Gitlab\Exception\RuntimeException $e) {
+    // $e->getCode() == 404
+    $file = null;
+}
+try {
+    $raw = $client->repositoryFiles()
+        ->getRawFile('foppelfb/demo-talk', $file, 'main');
+} catch (\Gitlab\Exception\RuntimeException $e) {
+    $raw = null;
+}
+                    </code></pre>
+                    <p class="fragment">this is the only (atomic) way to check if a file exists</p>
+                </section>
+
+                <section>
+                    <h2>Working with the repository</h2>
+                    <h3>creating or updating a file</h3>
+                    <pre><code class="hljs php" data-line-numbers="|2|4|6,7|9-15" data-trim>
+$payload = [
+	'file_path' => $file, // path/to/my/file.txt
+	'branch' => $branch,
+	'content' => $content, // plain text or base64
+	'commit_message' => $message,
+	'author_email' => 'fberger@sudhaus7.de',
+	'author_name' => 'Its a me, Franky',
+];
+if ($raw !== null) { // update
+	$result = $client->repositoryFiles()
+        ->updateFile('foppelfb/demo-talk', $payload);
+} else { //create
+	$result = $client->repositoryFiles()
+        ->createFile('foppelfb/demo-talk', $payload);
+}
+                    </code></pre>
+                </section>
+
+                <section>
+                    <h2>Working with the repository</h2>
+                    <p>Available actions for $client->repositoryFiles()</p>
+                    <ul>
+                        <li>->getFile()</li>
+                        <li>->getRawFile()</li>
+                        <li>->createFile()</li>
+                        <li>->updateFile()</li>
+                        <li>->deleteFile()</li>
+                    </ul>
+                    <p class="fragment">All writing methods create singular commits in the repository</p>
+                </section>
+
+                <section>
+                    <h2>Working with the repository</h2>
+                    <h3>Moving/renaming a file</h3>
+                    <pre><code class="hljs php" data-line-numbers="|1,2|5-11" data-trim>
+$commit = $client->repositories()
+    ->createCommit( 'foppelfb/demo-talk', parameters: [
+        'branch'=>$branch,
+        'commit_message'=>$commitmessage,
+        'actions'=>[
+            [
+                'action'=>'move',
+                'previous_path'=>$oldfilename,
+                'file_path'=> $newfilename,
+            ]
+        ],
+        'author_email'=>'fberger@sudhaus7.de',
+        'author_name'=>'The other Franky',
+] );
+                    </code></pre>
+                    <p class="fragment">Possible actions are: create, delete, move, update, chmod</p>
+                </section>
 
 				<section>
 					<h2>What are your questions?</h2>

@@ -10,8 +10,9 @@ $client->authenticate(getenv('GITLAB_ACCESS_TOKEN'), Gitlab\Client::AUTH_HTTP_TO
 
 $issues = $client->issues()->all('foppelfb/demo-talk');
 foreach($issues as $issue) {
-	printf("%d %s %s (%s)\n%s\n",
+	printf("[%d] ID %d in %s: %s (%s)\n%s\n",
 		$issue['id'],
+		$issue['iid'],
 		$issue['project_id'],
 		$issue['title'],
 		$issue['author']['name'],

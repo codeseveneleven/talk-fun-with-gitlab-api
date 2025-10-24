@@ -7,12 +7,15 @@ $client = new Gitlab\Client();
 $client->setUrl('https://gitlab.com/');
 $client->authenticate(getenv('GITLAB_ACCESS_TOKEN'), Gitlab\Client::AUTH_HTTP_TOKEN);
 
-$issue = $client->issues()->create('foppelfb/demo-talk',[
+$issue = $client
+	->issues()
+	->create('foppelfb/demo-talk',[
 	'title'=>$argv[1],
 	'description'=>$argv[2]
 ]);
-printf("%d %s %s (%s)\n%s\n",
+printf("[%d] ID %d in %s: %s (%s)\n%s\n",
 	$issue['id'],
+	$issue['iid'],
 	$issue['project_id'],
 	$issue['title'],
 	$issue['author']['name'],
