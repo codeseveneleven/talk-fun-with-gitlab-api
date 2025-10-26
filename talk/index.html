@@ -52,7 +52,7 @@
                     <h2>PHP Clients</h2>
                     <p>m4tthumphrey/php-gitlab-api (mentioned by Gitlab itself)</p>
                     <p class="fragment">Verb-complete implementation</p>
-                    <p class="fragment">Pure userland implementation without the need of a git binary</p>
+                    <p class="fragment">Pure userland implementation without the need of a git binary or extension</p>
                 </section>
 
                 <section>
@@ -328,6 +328,7 @@ $client->environments();
 $client->deployments();
 $client->jobs();
 $client->users();
+$client->groups();
 $client->tags();
 $client->wiki();
 
@@ -338,12 +339,11 @@ $client->repositoryFiles();
                 </section>
 
                 <section>
-                    <h2>Well, that is nice... but not really beyond normal services</h2>
+                    <h2>Well, that is nice... but not really beyond normal operations / management</h2>
                 </section>
 
                 <section>
-                    <h2>Working with the repository</h2>
-                    <h3>Listing branches</h3>
+                    <h2>Listing branches</h2>
                     <pre><code class="hljs php" data-line-numbers="|2,3|7" data-trim>
 $branches = $client
     ->repositories()
@@ -362,8 +362,7 @@ foreach($branches as $branch) {
                 </section>
 
                 <section>
-                    <h2>Working with the repository</h2>
-                    <h3>creating a branch</h3>
+                    <h2>Creating a branch</h2>
                     <pre><code class="hljs php" data-line-numbers="|3|12-14" data-trim>
 try {
   $branch = $client->repositories()
@@ -383,8 +382,7 @@ try {
                 </section>
 
                 <section>
-                    <h2>Working with the repository</h2>
-                    <h3>getting the content of a file</h3>
+                    <h2>Getting the content of a file</h2>
                     <pre><code class="hljs php" data-line-numbers="|1|4,11|6" data-trim>
 $file = 'my/path/file.txt';
 try {
@@ -405,8 +403,17 @@ try {
                 </section>
 
                 <section>
-                    <h2>Working with the repository</h2>
-                    <h3>creating or updating a file</h3>
+                    <h2>branch or reference?</h2>
+
+                    <pre><code class="hljs php" data-trim>
+                        $client->repositoryFiles()
+                            ->getFile('foppelfb/demo-talk', $file, ref: 'main');
+                    </code></pre>
+                    <p>'main' is a reference, can be a commit hash as well as a branch</p>
+                </section>
+
+                <section>
+                    <h2>Creating or updating a file</h2>
                     <pre><code class="hljs php" data-line-numbers="|2|4|6,7|9-15" data-trim>
 $payload = [
 	'file_path' => $file, // path/to/my/file.txt
@@ -427,8 +434,8 @@ if ($raw !== null) { // update
                 </section>
 
                 <section>
-                    <h2>Working with the repository</h2>
-                    <p>Available actions for $client->repositoryFiles()</p>
+                    <h2>Available actions for<br/>$client->repositoryFiles()</h2>
+
                     <ul>
                         <li>->getFile()</li>
                         <li>->getRawFile()</li>
@@ -440,8 +447,8 @@ if ($raw !== null) { // update
                 </section>
 
                 <section>
-                    <h2>Working with the repository</h2>
-                    <h3>Moving/renaming a file</h3>
+                    <h2>Moving or renaming a file</h2>
+
                     <pre><code class="hljs php" data-line-numbers="|1,2|5-11" data-trim>
 $commit = $client->repositories()
     ->createCommit( 'foppelfb/demo-talk', parameters: [
@@ -459,6 +466,76 @@ $commit = $client->repositories()
 ] );
                     </code></pre>
                     <p class="fragment">Possible actions are: create, delete, move, update, chmod</p>
+                    <p class="fragment">You can add several actions and create a branch in one go</p>
+                </section>
+
+                <section>
+                    <h2>Creating a merge request</h2>
+                    <pre><code class="hljs php" data-line-numbers="|2-4|8|9,10|11,12|15,16" data-trim>
+$parameters = [
+    'remove_source_branch'=>true,
+    'squash'=>true,
+    'assignee_id'=>123456,
+];
+try {
+    $mr = $client->mergeRequests()->create(
+        'foppelfb/demo-talk',
+        $srcBranch,
+        $tgtBranch,
+        $message,
+        $parameters
+    );
+} catch (\Gitlab\Exception\RuntimeException $e) {
+    // $e->getCode() == 409 -> merge request exists
+    echo $e->getCode(),' ',$e->getMessage(),"\n";
+}
+                    </code></pre>
+                    <p class="fragment">check $mr['merge_status'] and $mr['detailed_merge_status'] if you want to merge</p>
+                </section>
+                <section>
+                    <h2>Finally: merging a mergerequest</h2>
+                    <pre><code class="hljs php" data-line-numbers="|1,2|4,5|7,8|12,13" data-trim>
+$mr = $client->mergeRequests()
+  ->show( 'foppelfb/demo-talk', $iid);
+if (
+    $mr['detailed_merge_status'] === 'mergeable' &&
+    (int)$mr['user']['can_merge']===1
+) {
+    $mrResult = $client->mergeRequests()
+        ->merge('foppelfb/demo-talk', $iid, []);
+    printf("%s\n",$mrResult['merged_at']);
+} else {
+    printf("ERROR: %s: %s - user can merge: %d\n",
+        $mr['merge_status'], $mr['detailed_merge_status'],
+        $mr['user']['can_merge']
+    );
+}
+                    </code></pre>
+                    <p class="fragment">rebase is available as well, of course</p>
+                </section>
+                <section>
+                    <h2>Examples where this could be used</h2>
+                    <ul>
+                        <li class="fragment">Applications that can write files which exist in the repository as well</li>
+                        <li class="fragment">Ticket generation from inside the Application</li>
+                        <li class="fragment">Self-healing CI/CD Pipelines</li>
+                        <li class="fragment">Reporting / Ticketing in the same space</li>
+                        <li class="fragment">Automatic documentation in Wiki</li>
+                        <li class="fragment">Automated upgrade and maintenance tasks</li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h2>Something for TYPO3</h2>
+                    <p>code711/siteconfiggitsync | EXT:siteconfiggitsync</p>
+                    <p>An extension for TYPO3 that allows to keep the configuration for sites and site-sets (YAML Config files) - which can be edited through the backend by admins/editors - managed in GIT</p>
+                    <p>Has support for GitHub as well</p>
+                </section>
+                <section>
+                    <h2>Keeping ticket systems "in sync"</h2>
+                    <p>Customer facing we have a Redmine system</p>
+                    <p>Developers use code-related tickets in Gitlab</p>
+                    <p>Tools keep the ticket relations and release management in sync</p>
                 </section>
 
 				<section>
